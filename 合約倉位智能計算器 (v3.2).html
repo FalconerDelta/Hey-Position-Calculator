@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-TW">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>合約倉位智能計算器 (v3.2)</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Microsoft JhengHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+        }
+        .container {
+            width: 100%;
+            max-width: 950px;
+            background: #f8f9fd;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+            position: relative;
+            align-self: flex-start;
+        }
+        .lang-control { position: absolute; top: 12px; right: 12px; z-index: 10; }
+        .lang-control select { padding: 4px; border-radius: 4px; border: 1px solid #ddd; font-size: 11px; background: rgba(255,255,255,0.9); cursor: pointer; }
+        
+        .header { background: #2d364d; color: white; padding: 20px 15px; text-align: center; }
+        .header h2 { font-size: 20px; margin-bottom: 5px; }
+        .header p { font-size: 12px; color: #aab2bd; }
+
+        .content { padding: 15px; }
+        
+        .input-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+            gap: 12px; 
+            margin-bottom: 15px; 
+        }
+        .input-group label { display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 4px; }
+        .input-wrapper { position: relative; }
+        .input-wrapper .prefix { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #a0aec0; font-size: 12px; }
+        .input-group input, .input-group select { 
+            width: 100%; 
+            padding: 8px 8px 8px 20px; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 6px; 
+            font-size: 14px; 
+            background: white; 
+            outline: none;
+        }
+        .input-group select { padding-left: 8px; }
+
+        .desktop-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .desktop-table th { background: #3a4b5f; color: white; font-size: 11px; padding: 10px 4px; }
+        .desktop-table td { padding: 10px 4px; font-size: 12px; text-align: center; border-bottom: 1px solid #f1f5f9; }
+        
+        .mobile-cards { display: none; flex-direction: column; gap: 12px; margin-bottom: 15px; }
+        .coin-card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; padding: 12px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; }
+        .card-header h4 { color: #2d364d; font-size: 14px; }
+        .card-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+        .card-label { color: #718096; }
+
+        .val-highlight { color: #e53e3e; font-weight: 700; }
+        .risk-badge { font-size: 11px; padding: 3px 10px; border-radius: 4px; color: white; font-weight: bold; white-space: nowrap; }
+        .risk-low { background: #48bb78; } .risk-medium { background: #ed8936; } .risk-high { background: #e53e3e; }
+
+        .risk-summary { background: #ebf8ff; border-radius: 8px; padding: 12px; border-left: 4px solid #3182ce; margin-bottom: 15px; }
+        .summary-title { font-size: 14px; font-weight: 700; color: #2c5282; margin-bottom: 8px; }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; color: #2d3748; }
+
+        .notes-section { background: #fff8e1; border-radius: 8px; padding: 12px; border-left: 4px solid #ffc107; font-size: 11px; color: #5d4037; }
+        .notes-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+
+        @media (max-width: 600px) {
+            .desktop-table { display: none; }
+            .mobile-cards { display: flex; }
+            .input-grid { grid-template-columns: 1fr 1fr; }
+            .full-width-mobile { grid-column: span 2; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="lang-control">
+            <select id="langSwitcher">
+                <option value="zh_tw" selected="selected">繁體中文</option>
+                <option value="zh_cn">简体中文</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+
+        <div class="header">
+            <h2 id="ui-title">合約倉位智能計算器</h2>
+            <p id="ui-subtitle">多幣種風險管理量化工具</p>
+        </div>
+
+        <div class="content">
+            <div class="input-grid">
+                <div class="input-group">
+                    <label id="lbl-side">交易方向</label>
+                    <select id="tradeSide">
+                        <option value="long" id="opt-long" selected="selected">做多 (Long)</option>
+                        <option value="short" id="opt-short">做空 (Short)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label id="lbl-risk">風險等級</label>
+                    <select id="riskLevel">
+                        <option value="low" id="opt-low">保守 (2%)</option>
+                        <option value="medium" id="opt-med">標準 (4.8%)</option>
+                        <option value="high" id="opt-high" selected="selected">激進 (8%)</option>
+                    </select>
+                </div>
+                <div class="input-group full-width-mobile">
+                    <label id="lbl-cap">賬戶資金 (USD)</label>
+                    <div class="input-wrapper"><span class="prefix">$</span><input type="number" id="capital" value="1000" /></div>
+                </div>
+                <div class="input-group">
+                    <label id="lbl-btc">BTC 價格</label>
+                    <div class="input-wrapper"><span class="prefix">$</span><input type="number" id="btcPrice" value="95000" /></div>
+                </div>
+                <div class="input-group">
+                    <label id="lbl-eth">ETH 價格</label>
+                    <div class="input-wrapper"><span class="prefix">$</span><input type="number" id="ethPrice" value="2700" /></div>
+                </div>
+                <div class="input-group">
+                    <label id="lbl-sol">SOL 價格</label>
+                    <div class="input-wrapper"><span class="prefix">$</span><input type="number" id="solPrice" value="200" /></div>
+                </div>
+                <div class="input-group">
+                    <label id="lbl-bnb">BNB 價格</label>
+                    <div class="input-wrapper"><span class="prefix">$</span><input type="number" id="bnbPrice" value="600" /></div>
+                </div>
+            </div>
+
+            <div id="result-area"></div>
+
+            <div class="notes-section">
+                <div style="font-weight:bold" id="note-title">交易規則參考 (固定點數)</div>
+                <div class="notes-grid" id="notes-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        const i18n = {
+            zh_tw: {
+                title: "合約倉位智能計算器", subtitle: "多幣種風險管理量化工具",
+                side: "交易方向", long: "做多 (Long)", short: "做空 (Short)", cap: "賬戶資金 (USD)", risk: "風險等級",
+                low: "保守 (2%)", med: "標準 (4.8%)", high: "激進 (8%)",
+                resTitle: "推薦交易參數", colParam: "參數", pos: "合約倉位", lev: "杠杆倍數", slA: "止損金額", slP: "止損價格", tpA: "止盈金額", tpP: "止盈價格區間",
+                sumTitle: "風險控制總結", sumRisk: "總預期風險:", sumPct: "風險占比:", sumMax: "最大容許虧損:",
+                noteTitle: "交易規則參考 (固定點數)", tradeSuffix: "交易", err: "請輸入有效數值", pts: "點"
+            },
+            zh_cn: {
+                title: "合约仓位智能计算器", subtitle: "多币种风险管理量化工具",
+                side: "交易方向", long: "做多 (Long)", short: "做空 (Short)", cap: "账户资金 (USD)", risk: "风险等级",
+                low: "保守 (2%)", med: "标准 (4.8%)", high: "激进 (8%)",
+                resTitle: "推荐交易参数", colParam: "参数", pos: "合约仓位", lev: "杠杆倍数", slA: "止损金额", slP: "止损价格", tpA: "止盈金额", tpP: "止盈价格区间",
+                sumTitle: "风险控制总结", sumRisk: "总预期风险:", sumPct: "风险占比:", sumMax: "最大容许亏损:",
+                noteTitle: "交易规则参考 (固定点数)", tradeSuffix: "交易", err: "请输入有效数值", pts: "点"
+            },
+            en: {
+                title: "Position Calculator", subtitle: "Multi-Currency Risk Management",
+                side: "Direction", long: "Long", short: "Short", cap: "Capital (USD)", risk: "Risk Level",
+                low: "Conservative (2%)", med: "Standard (4.8%)", high: "Aggressive (8%)",
+                resTitle: "Trade Parameters", colParam: "Item", pos: "Position", lev: "Leverage", slA: "SL Amount", slP: "SL Price", tpA: "TP Amount", tpP: "TP Range",
+                sumTitle: "Risk Summary", sumRisk: "Total Risk:", sumPct: "Risk Ratio:", sumMax: "Max Loss:",
+                noteTitle: "Trading Rules (Static Points)", tradeSuffix: "Trade", err: "Invalid Input", pts: "pts"
+            }
+        };
+
+        const config = {
+            low: { bM: 2, eM: 1.5, sM: 1, nM: 1, rPct: 2, labelKey: 'low', color: 'risk-low' },
+            medium: { bM: 4, eM: 3, sM: 2, nM: 2, rPct: 4.8, labelKey: 'med', color: 'risk-medium' },
+            high: { bM: 6, eM: 4.5, sM: 3, nM: 3, rPct: 8, labelKey: 'high', color: 'risk-high' }
+        };
+        
+        const tickers = {
+            btc: { sl: 500, tpMin: 500, tpMax: 1000 },
+            eth: { sl: 25, tpMin: 25, tpMax: 50 },
+            sol: { sl: 1.4, tpMin: 1.4, tpMax: 2.8 },
+            bnb: { sl: 5, tpMin: 5, tpMax: 10 }
+        };
+
+        function updateUI() {
+            const lang = document.getElementById('langSwitcher').value;
+            const l = i18n[lang];
+            document.getElementById('ui-title').innerText = l.title;
+            document.getElementById('ui-subtitle').innerText = l.subtitle;
+            document.getElementById('lbl-side').innerText = l.side;
+            document.getElementById('opt-long').innerText = l.long;
+            document.getElementById('opt-short').innerText = l.short;
+            document.getElementById('lbl-risk').innerText = l.risk;
+            document.getElementById('opt-low').innerText = l.low;
+            document.getElementById('opt-med').innerText = l.med;
+            document.getElementById('opt-high').innerText = l.high;
+            document.getElementById('lbl-cap').innerText = l.cap;
+            document.getElementById('note-title').innerText = l.noteTitle;
+            calculate();
+        }
+
+        function calculate() {
+            const l = i18n[document.getElementById('langSwitcher').value];
+            const side = document.getElementById('tradeSide').value;
+            const cap = parseFloat(document.getElementById('capital').value) || 0;
+            const rL = document.getElementById('riskLevel').value;
+            const c = config[rL];
+
+            const prices = {
+                btc: parseFloat(document.getElementById('btcPrice').value) || 0,
+                eth: parseFloat(document.getElementById('ethPrice').value) || 0,
+                sol: parseFloat(document.getElementById('solPrice').value) || 0,
+                bnb: parseFloat(document.getElementById('bnbPrice').value) || 0
+            };
+
+            if (cap <= 0 || Object.values(prices).some(p => p <= 0)) {
+                document.getElementById('result-area').innerHTML = `<p style="color:red;text-align:center;padding:10px;">${l.err}</p>`;
+                return;
+            }
+
+            const coins = ['btc', 'eth', 'sol', 'bnb'];
+            const multipliers = { btc: c.bM, eth: c.eM, sol: c.sM, bnb: c.nM };
+            let totalRisk = 0;
+            let coinResults = {};
+
+            coins.forEach(coin => {
+                const pos = cap * multipliers[coin];
+                const slAmt = (pos / prices[coin]) * tickers[coin].sl;
+                const slP = side === 'long' ? prices[coin] - tickers[coin].sl : prices[coin] + tickers[coin].sl;
+                
+                const tpP1 = side === 'long' ? prices[coin] + tickers[coin].tpMin : prices[coin] - tickers[coin].tpMin;
+                const tpP2 = side === 'long' ? prices[coin] + tickers[coin].tpMax : prices[coin] - tickers[coin].tpMax;
+                const tpMinAmt = (pos / prices[coin]) * tickers[coin].tpMin;
+                const tpMaxAmt = (pos / prices[coin]) * tickers[coin].tpMax;
+                
+                totalRisk += slAmt;
+                coinResults[coin] = {
+                    pos: pos.toFixed(1),
+                    lev: multipliers[coin],
+                    slAmt: slAmt.toFixed(2),
+                    slPrice: slP.toFixed(coin === 'btc' ? 0 : 2),
+                    tpAmt: `${tpMinAmt.toFixed(1)}-${tpMaxAmt.toFixed(1)}`,
+                    tpPrice: `${Math.min(tpP1, tpP2).toFixed(coin==='btc'?0:2)} - ${Math.max(tpP1, tpP2).toFixed(coin==='btc'?0:2)}`
+                };
+            });
+
+            // Desktop Table
+            let tableHtml = `<table class="desktop-table"><thead><tr><th>${l.colParam}</th><th>BTC</th><th>ETH</th><th>SOL</th><th>BNB</th></tr></thead><tbody>`;
+            const rows = [
+                { lab: l.pos, key: 'pos', highlight: true, sfx: ' U' },
+                { lab: l.lev, key: 'lev', sfx: '×' },
+                { lab: l.slA, key: 'slAmt', sfx: ' U' },
+                { lab: l.slP, key: 'slPrice', highlight: true },
+                { lab: l.tpA, key: 'tpAmt', sfx: ' U' },
+                { lab: l.tpP, key: 'tpPrice', highlight: true }
+            ];
+            rows.forEach(r => {
+                tableHtml += `<tr><td>${r.lab}</td>${coins.map(coin => `<td class="${r.highlight?'val-highlight':''}">${coinResults[coin][r.key]}${r.sfx||''}</td>`).join('')}</tr>`;
+            });
+            tableHtml += `</tbody></table>`;
+
+            // Mobile Cards
+            let cardsHtml = `<div class="mobile-cards">`;
+            coins.forEach(coin => {
+                const res = coinResults[coin];
+                cardsHtml += `
+                    <div class="coin-card">
+                        <div class="card-header"><h4>${coin.toUpperCase()} ${l.tradeSuffix}</h4><span>${res.lev}×</span></div>
+                        <div class="card-row"><span class="card-label">${l.pos}</span><span class="val-highlight">${res.pos} U</span></div>
+                        <div class="card-row"><span class="card-label">${l.slP}</span><span class="val-highlight">${res.slPrice}</span></div>
+                        <div class="card-row"><span class="card-label">${l.slA}</span><span>${res.slAmt} U</span></div>
+                        <div class="card-row"><span class="card-label">${l.tpP}</span><span class="val-highlight">${res.tpPrice}</span></div>
+                        <div class="card-row"><span class="card-label">${l.tpA}</span><span>${res.tpAmt} U</span></div>
+                    </div>`;
+            });
+            cardsHtml += `</div>`;
+
+            document.getElementById('result-area').innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <h3 style="font-size:15px; color:#2d364d;">${l.resTitle}</h3>
+                    <span class="risk-badge ${c.color}">${l[c.labelKey]}</span>
+                </div>
+                ${tableHtml}
+                ${cardsHtml}
+                <div class="risk-summary">
+                    <div class="summary-title">${l.sumTitle}</div>
+                    <div class="summary-row"><span>${l.sumRisk}</span><span class="val-highlight">${totalRisk.toFixed(2)} U</span></div>
+                    <div class="summary-row"><span>${l.sumPct}</span><span class="val-highlight">${(totalRisk/cap*100).toFixed(2)}%</span></div>
+                    <div class="summary-row"><span>${l.sumMax}</span><span>${c.rPct}%</span></div>
+                </div>`;
+
+            document.getElementById('notes-content').innerHTML = coins.map(coin => 
+                `<div class="note-item"><strong>${coin.toUpperCase()}</strong>: SL ${tickers[coin].sl}${l.pts} / TP ${tickers[coin].tpMin}-${tickers[coin].tpMax}${l.pts}</div>`
+            ).join('');
+        }
+
+        window.onload = () => {
+            document.querySelectorAll('input, select').forEach(el => {
+                el.addEventListener('input', calculate);
+                el.addEventListener('change', calculate);
+            });
+            document.getElementById('langSwitcher').addEventListener('change', updateUI);
+            updateUI();
+        };
+    </script>
+</body>
+</html>
